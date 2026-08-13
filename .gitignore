@@ -15,3 +15,5 @@ Frontend/gestion-parc-frontend/dist/
 
 # Logs
 *.log
+# Secrets
+Backend/GestionParcMateriel.API/appsettings.Development.json
