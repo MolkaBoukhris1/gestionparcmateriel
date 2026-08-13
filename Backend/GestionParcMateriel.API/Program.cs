@@ -31,6 +31,7 @@ builder.Services.AddScoped<IEtatMaterielService, EtatMaterielService>();
 builder.Services.AddScoped<ILocalisationService, LocalisationService>();
 builder.Services.AddScoped<IEmployeService, EmployeService>();
 builder.Services.AddScoped<IMouvementService, MouvementService>();
+builder.Services.AddHttpClient<IAiAnalysisService, AiAnalysisService>();
 
 // ── Swagger / OpenAPI ────────────────────────────────────────────────────────
 builder.Services.AddEndpointsApiExplorer();
