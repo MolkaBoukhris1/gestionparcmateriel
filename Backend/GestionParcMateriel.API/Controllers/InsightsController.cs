@@ -25,7 +25,13 @@ namespace GestionParcMateriel.API.Controllers
                 .Include(m => m.Etat)
                 .Include(m => m.Localisation)
                 .Include(m => m.Employe)
+                .Include(m => m.TypeMateriel)
                 .Where(m => m.Actif)
+                .ToListAsync();
+
+            var tousMouvements = await _context.MouvementsMateriels
+                .Include(m => m.Materiel)
+                .OrderByDescending(m => m.DateMouvement)
                 .ToListAsync();
 
             // Règle 1 : matériel en panne/maintenance depuis longtemps
@@ -45,14 +51,9 @@ namespace GestionParcMateriel.API.Controllers
             }
 
             // Règle 2 : matériel affecté longtemps sans mouvement
-            var affectesAnciens = materiels.Where(m => m.Etat!.Libelle == "Affecté");
-            foreach (var m in affectesAnciens)
+            foreach (var m in materiels.Where(m => m.Etat!.Libelle == "Affecté"))
             {
-                var dernierMouvement = await _context.MouvementsMateriels
-                    .Where(mv => mv.MaterielId == m.Id)
-                    .OrderByDescending(mv => mv.DateMouvement)
-                    .FirstOrDefaultAsync();
-
+                var dernierMouvement = tousMouvements.FirstOrDefault(mv => mv.MaterielId == m.Id);
                 if (dernierMouvement != null)
                 {
                     var joursDepuis = (maintenant - dernierMouvement.DateMouvement).Days;
@@ -72,9 +73,7 @@ namespace GestionParcMateriel.API.Controllers
             // Règle 3 : matériel jamais mouvementé depuis création (stock dormant)
             foreach (var m in materiels.Where(m => m.Etat!.Libelle == "En stock"))
             {
-                var aDejaEuMouvement = await _context.MouvementsMateriels
-                    .AnyAsync(mv => mv.MaterielId == m.Id);
-
+                var aDejaEuMouvement = tousMouvements.Any(mv => mv.MaterielId == m.Id);
                 var joursDepuisCreation = (maintenant - m.DateCreation).Days;
 
                 if (!aDejaEuMouvement && joursDepuisCreation >= 30)
@@ -89,7 +88,7 @@ namespace GestionParcMateriel.API.Controllers
                 }
             }
 
-            // Règle 4 : localisation avec beaucoup de matériel en panne
+            // Règle 4 : localisation avec beaucoup de matériel en panne/HS
             var localisationsProblematiques = materiels
                 .Where(m => m.Etat!.Libelle == "Panne" || m.Etat!.Libelle == "HS")
                 .GroupBy(m => m.Localisation!.Nom)
@@ -105,6 +104,71 @@ namespace GestionParcMateriel.API.Controllers
                     titre = l.localisation,
                     message = $"{l.count} matériels en panne/HS dans cette localisation. Zone à surveiller."
                 });
+            }
+
+            // Règle 5 : matériel Rebut mais toujours localisé (à archiver)
+            var rebuts = materiels.Where(m => m.Etat!.Libelle == "Rebut").ToList();
+            if (rebuts.Any())
+            {
+                insights.Add(new
+                {
+                    type = "secondary",
+                    icone = "🗑️",
+                    titre = "Matériel en Rebut",
+                    message = $"{rebuts.Count} matériel(s) marqué(s) Rebut sont toujours dans le parc actif. Pensez à les archiver (Actif = false)."
+                });
+            }
+
+            // Règle 6 : employé avec beaucoup de matériel affecté (charge élevée)
+            var employesCharges = materiels
+                .Where(m => m.Employe != null)
+                .GroupBy(m => new { m.EmployeId, Nom = m.Employe!.Nom, Prenom = m.Employe!.Prenom })
+                .Where(g => g.Count() >= 3)
+                .Select(g => new { nom = $"{g.Key.Prenom} {g.Key.Nom}", count = g.Count() });
+
+            foreach (var e in employesCharges)
+            {
+                insights.Add(new
+                {
+                    type = "info",
+                    icone = "👤",
+                    titre = e.nom,
+                    message = $"{e.count} matériels affectés à cet employé. Vérifier la cohérence des besoins."
+                });
+            }
+
+            // Règle 7 : matériel sans numéro de série (traçabilité faible)
+            var sansNumeroSerie = materiels.Where(m => string.IsNullOrWhiteSpace(m.NumeroSerie)).ToList();
+            if (sansNumeroSerie.Count >= 3)
+            {
+                insights.Add(new
+                {
+                    type = "secondary",
+                    icone = "🔍",
+                    titre = "Traçabilité incomplète",
+                    message = $"{sansNumeroSerie.Count} matériels n'ont pas de numéro de série renseigné. Recommandé pour un meilleur suivi."
+                });
+            }
+
+            // Règle 8 : forte activité récente sur un matériel (mouvements rapprochés)
+            var groupesMouvements = tousMouvements
+                .Where(mv => (maintenant - mv.DateMouvement).Days <= 7)
+                .GroupBy(mv => mv.MaterielId)
+                .Where(g => g.Count() >= 3);
+
+            foreach (var g in groupesMouvements)
+            {
+                var mat = materiels.FirstOrDefault(m => m.Id == g.Key);
+                if (mat != null)
+                {
+                    insights.Add(new
+                    {
+                        type = "warning",
+                        icone = "🔄",
+                        titre = $"{mat.Libelle} ({mat.CodeBarre})",
+                        message = $"{g.Count()} mouvements en 7 jours. Activité inhabituelle, à vérifier."
+                    });
+                }
             }
 
             if (insights.Count == 0)
