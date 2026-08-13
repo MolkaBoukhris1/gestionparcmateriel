@@ -1,4 +1,5 @@
 using GestionParcMateriel.API.Data;
+using GestionParcMateriel.API.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,10 +10,12 @@ namespace GestionParcMateriel.API.Controllers
     public class InsightsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IAiAnalysisService _aiService;
 
-        public InsightsController(ApplicationDbContext context)
+        public InsightsController(ApplicationDbContext context, IAiAnalysisService aiService)
         {
             _context = context;
+            _aiService = aiService;
         }
 
         [HttpGet]
@@ -183,6 +186,33 @@ namespace GestionParcMateriel.API.Controllers
             }
 
             return Ok(insights);
+        }
+
+        [HttpGet("ai-summary")]
+        public async Task<IActionResult> GetAiSummary()
+        {
+            var materiels = await _context.Materiels
+                .Include(m => m.Etat)
+                .Include(m => m.Localisation)
+                .Where(m => m.Actif)
+                .ToListAsync();
+
+            var parEtat = materiels
+                .GroupBy(m => m.Etat!.Libelle)
+                .Select(g => $"{g.Key}: {g.Count()}")
+                .ToList();
+
+            var totalMouvements = await _context.MouvementsMateriels.CountAsync();
+
+            var resume = $@"
+Total matériel actif : {materiels.Count}
+Répartition par état : {string.Join(", ", parEtat)}
+Total mouvements enregistrés : {totalMouvements}
+";
+
+            var analyse = await _aiService.AnalyserParcAsync(resume);
+
+            return Ok(new { analyse });
         }
     }
 }
