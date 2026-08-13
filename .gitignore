@@ -1,0 +1,17 @@
+# Backend .NET
+Backend/GestionParcMateriel.API/bin/
+Backend/GestionParcMateriel.API/obj/
+*.user
+
+# Frontend Node
+Frontend/gestion-parc-frontend/node_modules/
+Frontend/gestion-parc-frontend/dist/
+
+# Éditeurs / Système
+.vs/
+.vscode/
+*.suo
+.DS_Store
+
+# Logs
+*.log
