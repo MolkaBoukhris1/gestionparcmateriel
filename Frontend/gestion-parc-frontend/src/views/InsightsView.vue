@@ -5,10 +5,30 @@
         <h2 class="fw-bold mb-1">🧠 Analyses intelligentes</h2>
         <p class="text-muted mb-0 small">Alertes et recommandations générées automatiquement à partir de l'état du parc.</p>
       </div>
-      <button class="btn btn-outline-primary btn-sm" @click="charger" :disabled="loading">
-        <span v-if="loading" class="spinner-border spinner-border-sm me-1"></span>
-        🔄 Actualiser
-      </button>
+     <div class="d-flex gap-2">
+        <button class="btn btn-outline-primary btn-sm" @click="charger" :disabled="loading">
+          <span v-if="loading" class="spinner-border spinner-border-sm me-1"></span>
+          🔄 Actualiser
+        </button>
+        <button class="btn btn-primary btn-sm" @click="genererAnalyseIA" :disabled="aiLoading">
+          <span v-if="aiLoading" class="spinner-border spinner-border-sm me-1"></span>
+          ✨ Générer une analyse IA
+        </button>
+      </div>
+    </div>
+
+    <!-- Bloc analyse IA -->
+    <div v-if="aiSummary || aiLoading" class="card mb-4 border-0 ai-card">
+      <div class="card-body">
+        <h6 class="fw-bold mb-2 d-flex align-items-center gap-2">
+          ✨ Analyse générée par IA
+        </h6>
+        <div v-if="aiLoading" class="text-muted small">
+          <span class="spinner-border spinner-border-sm me-2"></span>
+          Génération en cours...
+        </div>
+        <p v-else class="mb-0" style="white-space: pre-line">{{ aiSummary }}</p>
+      </div>
     </div>
 
     <!-- Résumé rapide -->
@@ -51,6 +71,8 @@ import api from '../services/api.js'
 
 const insights = ref([])
 const loading = ref(true)
+const aiSummary = ref('')
+const aiLoading = ref(false)
 
 const resume = computed(() => {
   const counts = {}
@@ -101,11 +123,25 @@ async function charger() {
     loading.value = false
   }
 }
-
+async function genererAnalyseIA() {
+  aiLoading.value = true
+  try {
+    const res = await api.get('/Insights/ai-summary')
+    aiSummary.value = res.data.analyse
+  } catch (error) {
+    aiSummary.value = "Erreur lors de la génération de l'analyse."
+  } finally {
+    aiLoading.value = false
+  }
+}
 onMounted(charger)
 </script>
 
 <style scoped>
+.ai-card {
+  background: linear-gradient(135deg, #eef4ff 0%, #f3ecff 100%);
+  border-left: 4px solid #7c3aed !important;
+}
 .insight-card {
   border-left: 4px solid var(--border);
   transition: transform 0.2s ease;

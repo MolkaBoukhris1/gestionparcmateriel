@@ -38,7 +38,7 @@ namespace GestionParcMateriel.API.Controllers
                 .ToListAsync();
 
             // Règle 1 : matériel en panne/maintenance depuis longtemps
-            foreach (var m in materiels.Where(m => m.Etat!.Libelle == "Panne" || m.Etat!.Libelle == "En maintenance"))
+            foreach (var m in materiels.Where(m => m.Etat?.Libelle == "Panne" || m.Etat?.Libelle == "En maintenance"))
             {
                 var joursDepuis = (maintenant - m.DateModification).Days;
                 if (joursDepuis >= 7)
@@ -48,13 +48,13 @@ namespace GestionParcMateriel.API.Controllers
                         type = "warning",
                         icone = "⚠️",
                         titre = $"{m.Libelle} ({m.CodeBarre})",
-                        message = $"En état \"{m.Etat!.Libelle}\" depuis {joursDepuis} jours. Intervention recommandée."
+                        message = $"En état \"{m.Etat?.Libelle}\" depuis {joursDepuis} jours. Intervention recommandée."
                     });
                 }
             }
 
             // Règle 2 : matériel affecté longtemps sans mouvement
-            foreach (var m in materiels.Where(m => m.Etat!.Libelle == "Affecté"))
+            foreach (var m in materiels.Where(m => m.Etat?.Libelle == "Affecté"))
             {
                 var dernierMouvement = tousMouvements.FirstOrDefault(mv => mv.MaterielId == m.Id);
                 if (dernierMouvement != null)
@@ -74,7 +74,7 @@ namespace GestionParcMateriel.API.Controllers
             }
 
             // Règle 3 : matériel jamais mouvementé depuis création (stock dormant)
-            foreach (var m in materiels.Where(m => m.Etat!.Libelle == "En stock"))
+            foreach (var m in materiels.Where(m => m.Etat?.Libelle == "En stock"))
             {
                 var aDejaEuMouvement = tousMouvements.Any(mv => mv.MaterielId == m.Id);
                 var joursDepuisCreation = (maintenant - m.DateCreation).Days;
@@ -93,7 +93,7 @@ namespace GestionParcMateriel.API.Controllers
 
             // Règle 4 : localisation avec beaucoup de matériel en panne/HS
             var localisationsProblematiques = materiels
-                .Where(m => m.Etat!.Libelle == "Panne" || m.Etat!.Libelle == "HS")
+                .Where(m => (m.Etat?.Libelle == "Panne" || m.Etat?.Libelle == "HS") && m.Localisation != null)
                 .GroupBy(m => m.Localisation!.Nom)
                 .Where(g => g.Count() >= 2)
                 .Select(g => new { localisation = g.Key, count = g.Count() });
@@ -110,7 +110,7 @@ namespace GestionParcMateriel.API.Controllers
             }
 
             // Règle 5 : matériel Rebut mais toujours localisé (à archiver)
-            var rebuts = materiels.Where(m => m.Etat!.Libelle == "Rebut").ToList();
+            var rebuts = materiels.Where(m => m.Etat?.Libelle == "Rebut").ToList();
             if (rebuts.Any())
             {
                 insights.Add(new
@@ -191,28 +191,36 @@ namespace GestionParcMateriel.API.Controllers
         [HttpGet("ai-summary")]
         public async Task<IActionResult> GetAiSummary()
         {
-            var materiels = await _context.Materiels
-                .Include(m => m.Etat)
-                .Include(m => m.Localisation)
-                .Where(m => m.Actif)
-                .ToListAsync();
+            try
+            {
+                var materiels = await _context.Materiels
+                    .Include(m => m.Etat)
+                    .Include(m => m.Localisation)
+                    .Where(m => m.Actif)
+                    .ToListAsync();
 
-            var parEtat = materiels
-                .GroupBy(m => m.Etat!.Libelle)
-                .Select(g => $"{g.Key}: {g.Count()}")
-                .ToList();
+                var parEtat = materiels
+                    .GroupBy(m => m.Etat?.Libelle ?? "Non défini")
+                    .Select(g => $"{g.Key}: {g.Count()}")
+                    .ToList();
 
-            var totalMouvements = await _context.MouvementsMateriels.CountAsync();
+                var totalMouvements = await _context.MouvementsMateriels.CountAsync();
 
-            var resume = $@"
+                var resume = $@"
 Total matériel actif : {materiels.Count}
 Répartition par état : {string.Join(", ", parEtat)}
 Total mouvements enregistrés : {totalMouvements}
 ";
 
-            var analyse = await _aiService.AnalyserParcAsync(resume);
+                var analyse = await _aiService.AnalyserParcAsync(resume);
 
-            return Ok(new { analyse });
+                return Ok(new { analyse });
+            }
+            catch (Exception ex)
+            {
+                // Ne jamais renvoyer un 500 nu : on renvoie le message d'erreur exploitable
+                return StatusCode(500, new { message = "Erreur lors de la génération de l'analyse.", detail = ex.Message });
+            }
         }
     }
 }

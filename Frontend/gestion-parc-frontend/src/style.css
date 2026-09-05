@@ -329,7 +329,19 @@ h2.fw-bold {
 .card-header.bg-dark * {
   color: #fff !important;
 }
+
 /* ── Fix débordement coins arrondis ─────────────────────────────────────── */
 .card {
   overflow: hidden;
 }
+
+
+
+
+
+
+
+
+
+
+
