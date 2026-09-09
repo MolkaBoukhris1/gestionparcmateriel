@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationDate="8/27/2026 9:58:58 PM"
+  DTS:CreationName="Microsoft.Package"
+  DTS:CreatorComputerName="MOLKA"
+  DTS:CreatorName="MOLKA\molka"
+  DTS:DTSID="{3AA0DBF9-910E-48C5-A5F8-B5700941BAE9}"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:LastModifiedProductVersion="17.0.1016.0"
+  DTS:LocaleID="1036"
+  DTS:ObjectName="Package1"
+  DTS:PackageType="5"
+  DTS:VersionBuild="4"
+  DTS:VersionGUID="{82E24862-B91C-44BB-8143-D0BA9BCDB671}">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[Molka\SQLEXPRESS.DWH_ParcInfo]"
+      DTS:CreationName="OLEDB"
+      DTS:DTSID="{A55D3E77-72B7-424B-B35A-B48B40C01CDF}"
+      DTS:ObjectName="Molka\SQLEXPRESS.DWH_ParcInfo">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectRetryCount="1"
+          DTS:ConnectRetryInterval="5"
+          DTS:ConnectionString="Data Source=Molka\SQLEXPRESS;Initial Catalog=DWH_ParcInfo;Provider=MSOLEDBSQL.1;Integrated Security=SSPI;Application Name=SSIS-Package1-{A55D3E77-72B7-424B-B35A-B48B40C01CDF}Molka\SQLEXPRESS.DWH_ParcInfo;Auto Translate=False;" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Variables />
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\LOAD_Dimensions_Faits"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:Description="Tâche d'exécution de requêtes SQL"
+      DTS:DTSID="{A8CFD049-613D-4D60-8D00-5928293D3075}"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:LocaleID="-1"
+      DTS:ObjectName="LOAD_Dimensions_Faits"
+      DTS:TaskContact="Execute SQL Task; Microsoft Corporation; SQL Server 2025; © 2025 Microsoft Corporation; All Rights Reserved;http://www.microsoft.com/sql/support/default.asp;1"
+      DTS:ThreadHint="0">
+      <DTS:Variables />
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{A55D3E77-72B7-424B-B35A-B48B40C01CDF}"
+          SQLTask:SqlStatementSource="/* ============================================================&#xA;   13_Charger_DWH_Complet.sql (VERSION DEFINITIVE)&#xA;   Recharge ENTIEREMENT le DWH a chaque execution (vide puis&#xA;   reinsere tout) -- plus simple et plus robuste que le MERGE,&#xA;   aucun risque de doublons. A utiliser desormais a la place&#xA;   de 06b_SSIS_SansGO.sql dans la tache SSIS LOAD_Dimensions_Faits.&#xA;   ============================================================ */&#xA;&#xA;USE [DWH_ParcInfo]&#xA;&#xA;-- 1) Vider dans l'ordre (enfants d'abord, a cause des cles etrangeres)&#xA;DELETE FROM dbo.Fact_Panne;&#xA;DELETE FROM dbo.Fact_Mouvement;&#xA;DELETE FROM dbo.Dim_Materiel;&#xA;DELETE FROM dbo.Dim_TypeMateriel;&#xA;DELETE FROM dbo.Dim_Etat;&#xA;DELETE FROM dbo.Dim_Localisation;&#xA;DELETE FROM dbo.Dim_Employe;&#xA;&#xA;DBCC CHECKIDENT ('dbo.Dim_TypeMateriel', RESEED, 0);&#xA;DBCC CHECKIDENT ('dbo.Dim_Etat', RESEED, 0);&#xA;DBCC CHECKIDENT ('dbo.Dim_Localisation', RESEED, 0);&#xA;DBCC CHECKIDENT ('dbo.Dim_Employe', RESEED, 0);&#xA;DBCC CHECKIDENT ('dbo.Dim_Materiel', RESEED, 0);&#xA;DBCC CHECKIDENT ('dbo.Fact_Panne', RESEED, 0);&#xA;&#xA;-- 2) Recharger les dimensions (une ligne par cle metier, garanti sans doublon grace a DISTINCT + GROUP BY)&#xA;INSERT INTO dbo.Dim_TypeMateriel (TypeMaterielId, Libelle)&#xA;SELECT Id, MAX(Libelle) FROM Staging_ParcInfo.dbo.Stg_TypesMateriels GROUP BY Id;&#xA;&#xA;INSERT INTO dbo.Dim_Etat (EtatId, Libelle, EstEtatPanne)&#xA;SELECT Id, MAX(Libelle), MAX(CASE WHEN Libelle = N'Panne' THEN 1 ELSE 0 END)&#xA;FROM Staging_ParcInfo.dbo.Stg_EtatsMateriels&#xA;GROUP BY Id;&#xA;&#xA;INSERT INTO dbo.Dim_Localisation (LocalisationId, Nom)&#xA;SELECT Id, MAX(Nom) FROM Staging_ParcInfo.dbo.Stg_Localisations GROUP BY Id;&#xA;&#xA;INSERT INTO dbo.Dim_Employe (EmployeId, Matricule, Nom, Prenom, Service, Poste)&#xA;SELECT Id, MAX(Matricule), MAX(Nom), MAX(Prenom), MAX(Service), MAX(Poste)&#xA;FROM Staging_ParcInfo.dbo.Stg_Employes&#xA;GROUP BY Id;&#xA;&#xA;INSERT INTO dbo.Dim_Materiel&#xA;    (MaterielId, CodeBarre, Libelle, SK_TypeMateriel, Marque, Modele, NumeroSerie,&#xA;     DateAcquisition, PrixAchat, DureeVieTheoriqueAnnees, Actif)&#xA;SELECT&#xA;    s.Id, MAX(s.CodeBarre), MAX(s.Libelle), MAX(dt.SK_TypeMateriel), MAX(s.Marque), MAX(s.Modele),&#xA;    MAX(s.NumeroSerie), CAST(MAX(s.DateAcquisition) AS DATE), MAX(s.PrixAchat),&#xA;    MAX(s.DureeVieTheoriqueAnnees), MAX(CAST(s.Actif AS INT))&#xA;FROM Staging_ParcInfo.dbo.Stg_Materiels s&#xA;JOIN dbo.Dim_TypeMateriel dt ON dt.TypeMaterielId = s.TypeMaterielId&#xA;GROUP BY s.Id;&#xA;&#xA;-- 3) Fact_Mouvement&#xA;INSERT INTO dbo.Fact_Mouvement&#xA;    (MouvementId, SK_Materiel, SK_Date, SK_Employe, SK_Localisation, SK_EtatAvant, SK_EtatApres,&#xA;     TypeMouvement, DateHeureMouvement, DureeDepuisMouvementPrecedentH, CoutReparation)&#xA;SELECT&#xA;    s.Id, dm.SK_Materiel, CONVERT(INT, FORMAT(s.DateMouvement, 'yyyyMMdd')),&#xA;    de.SK_Employe, dl.SK_Localisation, dea.SK_Etat, deb.SK_Etat,&#xA;    s.TypeMouvement, s.DateMouvement,&#xA;    DATEDIFF(MINUTE, LAG(s.DateMouvement) OVER (PARTITION BY s.MaterielId ORDER BY s.DateMouvement, s.Id), s.DateMouvement) / 60.0,&#xA;    s.CoutReparation&#xA;FROM Staging_ParcInfo.dbo.Stg_MouvementsMateriels s&#xA;JOIN dbo.Dim_Materiel dm       ON dm.MaterielId = s.MaterielId&#xA;JOIN dbo.Dim_Etat dea           ON dea.EtatId = s.AncienEtatId&#xA;JOIN dbo.Dim_Etat deb           ON deb.EtatId = s.NouvelEtatId&#xA;JOIN dbo.Dim_Localisation dl    ON dl.LocalisationId = s.LocalisationId&#xA;LEFT JOIN dbo.Dim_Employe de    ON de.EmployeId = s.EmployeId;&#xA;&#xA;-- 4) Fact_Panne&#xA;;WITH Debuts AS (&#xA;    SELECT s.Id AS MouvementId, s.MaterielId, s.DateMouvement AS DateDeclaration&#xA;    FROM Staging_ParcInfo.dbo.Stg_MouvementsMateriels s&#xA;    JOIN Staging_ParcInfo.dbo.Stg_EtatsMateriels e ON e.Id = s.NouvelEtatId&#xA;    WHERE e.Libelle = N'Panne'&#xA;),&#xA;Resolutions AS (&#xA;    SELECT d.MouvementId AS MouvementDebutId, d.MaterielId, d.DateDeclaration,&#xA;           (&#xA;               SELECT TOP 1 s2.DateMouvement&#xA;               FROM Staging_ParcInfo.dbo.Stg_MouvementsMateriels s2&#xA;               JOIN Staging_ParcInfo.dbo.Stg_EtatsMateriels e2 ON e2.Id = s2.NouvelEtatId&#xA;               WHERE s2.MaterielId = d.MaterielId&#xA;                 AND s2.DateMouvement &gt; d.DateDeclaration&#xA;                 AND e2.Libelle IN (N'En stock', N'Affecté')&#xA;               ORDER BY s2.DateMouvement ASC&#xA;           ) AS DateResolution&#xA;    FROM Debuts d&#xA;)&#xA;INSERT INTO dbo.Fact_Panne&#xA;    (SK_Materiel, SK_Date_Declaration, SK_Date_Resolution, DateHeureDeclaration, DateHeureResolution,&#xA;     DureeImmobilisationHeures, DureeDepuisPannePrecedenteH, CoutReparation, EstRecurrente)&#xA;SELECT&#xA;    dm.SK_Materiel,&#xA;    CONVERT(INT, FORMAT(r.DateDeclaration, 'yyyyMMdd')),&#xA;    CASE WHEN r.DateResolution IS NULL THEN NULL ELSE CONVERT(INT, FORMAT(r.DateResolution, 'yyyyMMdd')) END,&#xA;    r.DateDeclaration, r.DateResolution,&#xA;    CASE WHEN r.DateResolution IS NULL THEN NULL ELSE DATEDIFF(MINUTE, r.DateDeclaration, r.DateResolution) / 60.0 END,&#xA;    DATEDIFF(MINUTE, LAG(r.DateDeclaration) OVER (PARTITION BY r.MaterielId ORDER BY r.DateDeclaration), r.DateDeclaration) / 60.0,&#xA;    (SELECT MAX(sm.CoutReparation) FROM Staging_ParcInfo.dbo.Stg_MouvementsMateriels sm&#xA;     WHERE sm.MaterielId = r.MaterielId AND sm.DateMouvement = r.DateResolution),&#xA;    0&#xA;FROM Resolutions r&#xA;JOIN dbo.Dim_Materiel dm ON dm.MaterielId = r.MaterielId;&#xA;&#xA;UPDATE fp SET EstRecurrente = 1&#xA;FROM dbo.Fact_Panne fp&#xA;WHERE fp.DureeDepuisPannePrecedenteH IS NOT NULL AND fp.DureeDepuisPannePrecedenteH &lt;= (90 * 24);" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+  <DTS:DesignTimeProperties><![CDATA[<?xml version="1.0"?>
+<!--Cette section CDATA contient des informations sur la disposition du package. Elle comprend des informations telles que les coordonnées (x,y), la largeur et la hauteur.-->
+<!--Si vous modifiez manuellement cette section et commettez une erreur, vous pouvez la supprimer. -->
+<!--Le package pourra toujours se charger normalement, mais les informations de disposition précédente seront perdues et le concepteur réorganisera automatiquement les éléments sur l'aire de conception.-->
+<Objects
+  Version="8">
+  <!--Chaque nœud ci-dessous contiendra des propriétés qui n'affectent pas le comportement d'exécution.-->
+  <Package
+    design-time-name="Package">
+    <LayoutInfo>
+      <GraphLayout
+        Capacity="4" xmlns="clr-namespace:Microsoft.SqlServer.IntegrationServices.Designer.Model.Serialization;assembly=Microsoft.SqlServer.IntegrationServices.Graph">
+        <NodeLayout
+          Size="195.2,41.6"
+          Id="Package\LOAD_Dimensions_Faits"
+          TopLeft="62.1666635705366,46.2333330500788" />
+      </GraphLayout>
+    </LayoutInfo>
+  </Package>
+</Objects>]]></DTS:DesignTimeProperties>
+</DTS:Executable>
